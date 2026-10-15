@@ -1,0 +1,59 @@
+{% extends 'layout/base.twig' %}
+
+{% block title %}{{ trans('abos.account.title') }} – {{ site_name }}{% endblock %}
+
+{% block content %}
+{% include 'account/_nav.twig' %}
+<h1>{{ trans('abos.account.title') }}</h1>
+
+{% if current %}
+    <section>
+        <h2>{{ current.name }}</h2>
+        <p>
+            <strong>{{ trans('abos.admin.status.' ~ current.status) }}</strong>
+            · {{ current.period_end ? trans('abos.account.until', {date: current.period_end|slice(0, 10)}) : trans('abos.account.open') }}
+        </p>
+        {% if current.provider_ref %}
+            <form method="post" action="{{ url('/account/subscription/cancel') }}">
+                {{ csrf_field() }}
+                <button type="submit" class="link-button">{{ trans('abos.account.cancel') }}</button>
+                <small>{{ trans('abos.account.cancel_hint') }}</small>
+            </form>
+        {% endif %}
+        {% if current.feature_labels %}
+            <h3>{{ trans('abos.account.features') }}</h3>
+            <ul>
+                {% for label in current.feature_labels %}
+                    <li>{{ label }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </section>
+{% else %}
+    <p>{{ trans('abos.account.none') }}</p>
+{% endif %}
+
+{% if invoices %}
+    <h2>{{ trans('abos.account.invoices') }}</h2>
+    <table>
+        <thead>
+        <tr>
+            <th scope="col">{{ trans('abos.account.invoice_number') }}</th>
+            <th scope="col">{{ trans('abos.account.invoice_date') }}</th>
+            <th scope="col">{{ trans('abos.account.invoice_amount') }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for invoice in invoices %}
+            <tr>
+                <td><a href="{{ url('/account/subscription/invoices/' ~ invoice.id) }}">{{ invoice.number }}</a></td>
+                <td>{{ invoice.issued_at|slice(0, 10) }}</td>
+                <td>{{ money(invoice.gross_cents, invoice.currency) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endif %}
+
+<p><a href="{{ url('/subscriptions') }}">{{ trans('abos.account.overview') }}</a></p>
+{% endblock %}

@@ -1,0 +1,54 @@
+name: Release
+
+# Fires only on a version tag:
+#   git tag v0.1.0 && git push origin v0.1.0
+# The tag has to match "version" in extension.json. The release carries the
+# package and its checksum, which is what Modulento's "Packages" page
+# installs and updates from.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check that the tag matches extension.json
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          declared="$(python3 -c 'import json; print(json.load(open("extension.json"))["version"])')"
+          if [ "$version" != "$declared" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $declared in extension.json" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Only committed files; .gitattributes keeps repository housekeeping
+      # out. Made on Linux, so every entry is marked as Unix, which
+      # Modulento insists on when unpacking.
+      - name: Build the package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist stage
+          git archive HEAD | tar -x -C stage
+          (cd stage && zip -q -r -X "../dist/modulento-ext-abos-$VERSION.zip" .)
+          (cd dist && sha256sum "modulento-ext-abos-$VERSION.zip" > "modulento-ext-abos-$VERSION.zip.sha256")
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/modulento-ext-abos-$VERSION.zip" \
+            "dist/modulento-ext-abos-$VERSION.zip.sha256" \
+            --title "Abos $VERSION" \
+            --generate-notes

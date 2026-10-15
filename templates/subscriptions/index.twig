@@ -1,0 +1,30 @@
+{% extends 'layout/base.twig' %}
+
+{% block title %}{{ trans('abos.title') }} – {{ site_name }}{% endblock %}
+
+{% block content %}
+<h1>{{ trans('abos.title') }}</h1>
+<p class="lead">{{ trans('abos.intro') }}</p>
+
+{% if plans %}
+    <ul class="card-list">
+        {% for plan in plans %}
+            <li>
+                <strong class="card-title">{{ plan.name }}</strong>
+                <span class="price">{{ money(plan.price_cents, plan.currency) }}</span>
+                <small>{{ trans(plan.period_months == 1 ? 'abos.period_one' : 'abos.period', {count: plan.period_months}) }}</small>
+                {% if plan.feature_labels %}
+                    <p class="muted">{{ plan.feature_labels|join(', ') }}</p>
+                {% endif %}
+                {% if signed_in and (methods.transfer or methods.stripe) %}
+                    <p><a class="button" href="{{ url('/subscriptions/' ~ plan.id ~ '/checkout') }}">{{ trans('abos.buy.book') }}</a></p>
+                {% elseif not signed_in and (methods.transfer or methods.stripe) %}
+                    <p><a href="{{ url('/login') }}">{{ trans('abos.buy.login') }}</a></p>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>{{ trans('abos.none') }}</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,8 @@
+{
+    "id": "abos",
+    "name": "Abos",
+    "version": "0.1.0",
+    "api": 1,
+    "type": "addon",
+    "namespace": "Modulento\\Abos"
+}

@@ -1,0 +1,248 @@
+{% extends '@admin/layout.twig' %}
+
+{% block title %}{{ trans('abos.admin.title') }} – {{ site_name }}{% endblock %}
+
+{% block admin %}
+{% include '@admin/_page_header.twig' with {heading: trans('abos.admin.title')} only %}
+
+<section class="card-box">
+    <div class="card-head">
+        <p>{{ trans('abos.admin.intro') }}</p>
+    </div>
+
+    {% if not methods.transfer and not methods.stripe %}
+        <p class="flash flash-error" role="status">{{ trans('abos.admin.methods.none') }}</p>
+    {% endif %}
+    {% if not issuer %}
+        <p class="flash flash-error" role="status">{{ trans('abos.admin.issuer.missing') }}</p>
+    {% endif %}
+
+    <h2>{{ trans('abos.admin.plans.title') }}</h2>
+    {% if plans %}
+        <ul class="columns plan-grid">
+            {% for plan in plans %}
+                <li class="card-box plan-card">
+                    <div class="card-head">
+                        <div>
+                            <strong class="card-title"><a href="{{ url('/admin/subscriptions/plans/' ~ plan.id) }}">{{ plan.name }}</a></strong>
+                            <small>{{ plan.slug }}</small>
+                        </div>
+                        <span class="badge {{ plan.active ? 'badge-active' : 'badge-disabled' }}">{{ trans(plan.active ? 'abos.admin.plans.active_badge' : 'abos.admin.plans.inactive') }}</span>
+                    </div>
+                    <p class="price">{{ money(plan.price_cents, plan.currency) }} <small>/ {{ trans(plan.period_months == 1 ? 'abos.admin.plans.months_one' : 'abos.admin.plans.months', {count: plan.period_months}) }}</small></p>
+                    <p class="muted">{{ trans('abos.admin.plans.app') }}: {{ plan.app_id is not null ? (apps[plan.app_id] ?? plan.app_id) : trans('abos.admin.plans.app_general') }}</p>
+                    <p class="muted">{{ trans(subscriber_counts[plan.id] is defined and subscriber_counts[plan.id] == 1 ? 'abos.admin.plans.subscribers_one' : 'abos.admin.plans.subscribers', {count: subscriber_counts[plan.id] ?? 0}) }}</p>
+                    {% if plan.features %}
+                        <p class="muted">{{ trans('abos.admin.plans.features') }}: {{ plan.features|join(', ') }}</p>
+                    {% endif %}
+                    {% set limitParts = [] %}
+                    {% for type in offer_types %}
+                        {% if plan.offer_limits[type.id] is defined %}
+                            {% set limitParts = limitParts|merge([trans(type.label_key) ~ ': ' ~ plan.offer_limits[type.id]]) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if plan.max_images_per_offer is not null %}
+                        {% set limitParts = limitParts|merge([trans('abos.admin.plan.max_images') ~ ': ' ~ plan.max_images_per_offer]) %}
+                    {% endif %}
+                    {% if limitParts %}
+                        <p class="muted">{{ trans('abos.admin.plan.limits') }}: {{ limitParts|join(' · ') }}</p>
+                    {% endif %}
+                    <p><a href="{{ url('/admin/subscriptions/plans/' ~ plan.id) }}">{{ trans('abos.admin.plans.edit') }}</a></p>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>{{ trans('abos.admin.plans.none') }}</p>
+    {% endif %}
+
+    <form method="post" action="{{ url('/admin/subscriptions/plans') }}" class="stack-form">
+        {{ csrf_field() }}
+        <label for="plan-name">{{ trans('abos.admin.plans.form.name') }}</label>
+        <input id="plan-name" name="name" maxlength="100" required>
+        <label for="plan-slug">{{ trans('abos.admin.plans.form.slug') }}</label>
+        <input id="plan-slug" name="slug" maxlength="40" pattern="[a-z0-9-]+" required>
+        <small>{{ trans('abos.admin.plans.form.slug_hint') }}</small>
+        <label for="plan-app">{{ trans('abos.admin.plans.form.app') }}</label>
+        <select id="plan-app" name="app_id">
+            <option value="">{{ trans('abos.admin.plans.app_general') }}</option>
+            {% for id, name in apps %}
+                <option value="{{ id }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+        <small>{{ trans('abos.admin.plans.form.app_hint') }}</small>
+        <label for="plan-price">{{ trans('abos.admin.plans.form.price') }}</label>
+        <input id="plan-price" name="price" inputmode="decimal" placeholder="9,90" required>
+        <label for="plan-currency">{{ trans('abos.admin.plans.form.currency') }}</label>
+        <input id="plan-currency" name="currency" value="EUR" maxlength="3" pattern="[A-Za-z]{3}" required>
+        <label for="plan-period">{{ trans('abos.admin.plans.form.period') }}</label>
+        <select id="plan-period" name="period_months">
+            {% for months in periods %}
+                <option value="{{ months }}" {{ months == 1 ? 'selected' }}>{{ trans(months == 1 ? 'abos.admin.plans.months_one' : 'abos.admin.plans.months', {count: months}) }}</option>
+            {% endfor %}
+        </select>
+        <label for="plan-features">{{ trans('abos.admin.plans.form.features') }}</label>
+        <textarea id="plan-features" name="features" rows="3"></textarea>
+        <small>{{ trans('abos.admin.plans.form.features_hint') }}</small>
+        <button type="submit">{{ trans('abos.admin.plans.form.save') }}</button>
+    </form>
+</section>
+
+<section class="card-box">
+    <h2>{{ trans('abos.admin.issuer.title') }}</h2>
+    <p>{{ trans('abos.admin.issuer.intro') }}</p>
+    <form method="post" action="{{ url('/admin/subscriptions/invoice-settings') }}" class="stack-form">
+        {{ csrf_field() }}
+        <label for="issuer-name">{{ trans('abos.admin.issuer.name') }}</label>
+        <input id="issuer-name" name="name" maxlength="150" value="{{ issuer.name ?? '' }}" required>
+        <label for="issuer-street">{{ trans('abos.admin.issuer.street') }}</label>
+        <input id="issuer-street" name="street" maxlength="200" value="{{ issuer.street ?? '' }}" required>
+        <label for="issuer-postal">{{ trans('abos.admin.issuer.postal_code') }}</label>
+        <input id="issuer-postal" name="postal_code" maxlength="20" value="{{ issuer.postal_code ?? '' }}" required>
+        <label for="issuer-city">{{ trans('abos.admin.issuer.city') }}</label>
+        <input id="issuer-city" name="city" maxlength="100" value="{{ issuer.city ?? '' }}" required>
+        <label for="issuer-country">{{ trans('abos.admin.issuer.country') }}</label>
+        <select id="issuer-country" name="country" required>
+            {% for code in countries %}
+                <option value="{{ code }}" {{ code == (issuer.country ?? 'DE') ? 'selected' }}>{{ trans('core.country.' ~ code) }}</option>
+            {% endfor %}
+        </select>
+        <label for="issuer-vat">{{ trans('abos.admin.issuer.vat_id') }}</label>
+        <input id="issuer-vat" name="vat_id" maxlength="20" value="{{ issuer.vat_id ?? '' }}" placeholder="ATU12345678">
+        <label for="issuer-rate">{{ trans('abos.admin.issuer.tax_rate') }}</label>
+        <input id="issuer-rate" name="tax_rate" type="number" min="0" max="30" value="{{ issuer.tax_rate ?? 19 }}" required>
+        <small>{{ trans('abos.admin.issuer.tax_rate_hint') }}</small>
+        <label for="issuer-note">{{ trans('abos.admin.issuer.note') }}</label>
+        <textarea id="issuer-note" name="note" rows="2" maxlength="300">{{ issuer.note ?? '' }}</textarea>
+        <small>{{ trans('abos.admin.issuer.note_hint') }}</small>
+        <button type="submit">{{ trans('abos.admin.issuer.save') }}</button>
+    </form>
+</section>
+
+<section class="card-box">
+    <h2>{{ trans('abos.admin.invoices.title') }}</h2>
+    {% if invoices %}
+        <table>
+            <thead>
+            <tr>
+                <th scope="col">{{ trans('abos.admin.invoices.number') }}</th>
+                <th scope="col">{{ trans('abos.admin.invoices.date') }}</th>
+                <th scope="col">{{ trans('abos.admin.invoices.buyer') }}</th>
+                <th scope="col">{{ trans('abos.admin.invoices.amount') }}</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for invoice in invoices %}
+                <tr>
+                    <td><a href="{{ url('/admin/subscriptions/invoices/' ~ invoice.id) }}">{{ invoice.number }}</a></td>
+                    <td>{{ invoice.issued_at|slice(0, 10) }}</td>
+                    <td>{{ invoice.buyer.name }}</td>
+                    <td>{{ money(invoice.gross_cents, invoice.currency) }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>{{ trans('abos.admin.invoices.none') }}</p>
+    {% endif %}
+</section>
+
+<section class="card-box">
+    <h2>{{ trans('abos.admin.bank.title') }}</h2>
+    <p>{{ trans('abos.admin.bank.intro') }}</p>
+    <form method="post" action="{{ url('/admin/subscriptions/bank') }}" class="stack-form">
+        {{ csrf_field() }}
+        <label for="bank-holder">{{ trans('abos.admin.bank.holder') }}</label>
+        <input id="bank-holder" name="holder" maxlength="100" value="{{ bank.holder ?? '' }}">
+        <label for="bank-iban">{{ trans('abos.admin.bank.iban') }}</label>
+        <input id="bank-iban" name="iban" maxlength="34" value="{{ bank.iban ?? '' }}">
+        <label for="bank-bic">{{ trans('abos.admin.bank.bic') }}</label>
+        <input id="bank-bic" name="bic" maxlength="11" value="{{ bank.bic ?? '' }}">
+        <small>{{ trans('abos.admin.bank.hint') }}</small>
+        <button type="submit">{{ trans('abos.admin.bank.save') }}</button>
+    </form>
+</section>
+
+<section class="card-box">
+    <h2>{{ trans('abos.admin.transfers.title') }}</h2>
+    {% if transfers %}
+        <table>
+            <thead>
+            <tr>
+                <th scope="col">{{ trans('abos.admin.transfers.reference') }}</th>
+                <th scope="col">{{ trans('abos.admin.recent.account') }}</th>
+                <th scope="col">{{ trans('abos.admin.recent.plan') }}</th>
+                <th scope="col">{{ trans('abos.admin.transfers.amount') }}</th>
+                <th scope="col"><span class="visually-hidden">{{ trans('abos.admin.transfers.confirm') }}</span></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for order in transfers %}
+                <tr>
+                    <td><code>{{ order.reference }}</code></td>
+                    <td>{{ order.email }}</td>
+                    <td>{{ order.plan_name }}</td>
+                    <td>{{ money(order.amount_cents, order.currency) }}</td>
+                    <td>
+                        <form method="post" action="{{ url('/admin/subscriptions/orders/' ~ order.id ~ '/paid') }}">
+                            {{ csrf_field() }}
+                            <button type="submit">{{ trans('abos.admin.transfers.confirm') }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>{{ trans('abos.admin.transfers.none') }}</p>
+    {% endif %}
+</section>
+
+<section class="card-box">
+    <h2>{{ trans('abos.admin.assign.title') }}</h2>
+    <p>{{ trans('abos.admin.assign.intro') }}</p>
+    <form method="post" action="{{ url('/admin/subscriptions/assign') }}" class="stack-form">
+        {{ csrf_field() }}
+        <label for="assign-email">{{ trans('abos.admin.assign.email') }}</label>
+        <input id="assign-email" name="email" type="email" required>
+        <label for="assign-plan">{{ trans('abos.admin.assign.plan') }}</label>
+        <select id="assign-plan" name="plan">
+            <option value="">{{ trans('abos.admin.assign.none') }}</option>
+            {% for plan in plans|filter(p => p.active) %}
+                <option value="{{ plan.id }}">{{ plan.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="assign-until">{{ trans('abos.admin.assign.until') }}</label>
+        <input id="assign-until" name="until" type="date">
+        <small>{{ trans('abos.admin.assign.until_hint') }}</small>
+        <button type="submit">{{ trans('abos.admin.assign.submit') }}</button>
+    </form>
+</section>
+
+<section class="card-box">
+    <h2>{{ trans('abos.admin.recent.title') }}</h2>
+    {% if recent %}
+        <table>
+            <thead>
+            <tr>
+                <th scope="col">{{ trans('abos.admin.recent.account') }}</th>
+                <th scope="col">{{ trans('abos.admin.recent.plan') }}</th>
+                <th scope="col">{{ trans('abos.admin.recent.status') }}</th>
+                <th scope="col">{{ trans('abos.admin.recent.until') }}</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in recent %}
+                <tr>
+                    <td>{{ row.email }}</td>
+                    <td>{{ row.plan_name }}</td>
+                    <td>{{ trans('abos.admin.status.' ~ row.status) }}</td>
+                    <td>{{ row.period_end ? row.period_end|slice(0, 10) : trans('abos.admin.recent.open') }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>{{ trans('abos.admin.recent.none') }}</p>
+    {% endif %}
+</section>
+{% endblock %}

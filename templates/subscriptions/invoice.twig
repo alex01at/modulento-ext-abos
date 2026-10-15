@@ -1,0 +1,64 @@
+{% extends 'layout/base.twig' %}
+
+{% block title %}{{ invoice.number }} – {{ site_name }}{% endblock %}
+
+{% block content %}
+{% if back starts with '/admin' %}
+    <p><a href="{{ url(back) }}">{{ trans('abos.invoice.back_admin') }}</a></p>
+{% else %}
+    {% include 'account/_nav.twig' %}
+{% endif %}
+
+<article class="invoice">
+    <header>
+        <h1>{{ trans('abos.invoice.title') }} {{ invoice.number }}</h1>
+        <p>{{ trans('abos.invoice.date') }}: {{ invoice.issued_at|slice(0, 10) }}</p>
+    </header>
+
+    <section>
+        <p><strong>{{ invoice.issuer.name }}</strong><br>
+            {{ invoice.issuer.street }}<br>
+            {{ invoice.issuer.postal_code }} {{ invoice.issuer.city }}<br>
+            {{ trans('core.country.' ~ invoice.issuer.country) }}
+            {% if invoice.issuer.vat_id %}<br>{{ trans('abos.invoice.vat_id') }}: {{ invoice.issuer.vat_id }}{% endif %}
+        </p>
+        <p><strong>{{ trans('abos.invoice.to') }}</strong><br>
+            {{ invoice.buyer.name }}<br>
+            {{ invoice.buyer.street }}<br>
+            {{ invoice.buyer.postal_code }} {{ invoice.buyer.city }}<br>
+            {{ trans('core.country.' ~ invoice.buyer.country) }}
+        </p>
+    </section>
+
+    <table>
+        <thead>
+        <tr>
+            <th scope="col">{{ trans('abos.invoice.item') }}</th>
+            <th scope="col">{{ trans('abos.invoice.net') }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>{{ trans('abos.invoice.item_text', {plan: invoice.plan_name, months: invoice.months}) }}</td>
+            <td>{{ money(invoice.net_cents, invoice.currency) }}</td>
+        </tr>
+        </tbody>
+        <tfoot>
+        <tr>
+            <th scope="row">{{ trans('abos.invoice.net_total') }}</th>
+            <td>{{ money(invoice.net_cents, invoice.currency) }}</td>
+        </tr>
+        <tr>
+            <th scope="row">{{ invoice.tax_rate > 0 ? trans('abos.invoice.vat', {rate: invoice.tax_rate}) : trans('abos.invoice.no_vat') }}</th>
+            <td>{{ money(invoice.tax_cents, invoice.currency) }}</td>
+        </tr>
+        <tr>
+            <th scope="row">{{ trans('abos.invoice.gross_total') }}</th>
+            <td><strong>{{ money(invoice.gross_cents, invoice.currency) }}</strong></td>
+        </tr>
+        </tfoot>
+    </table>
+
+    {% if invoice.issuer.note %}<p><small>{{ invoice.issuer.note }}</small></p>{% endif %}
+</article>
+{% endblock %}
