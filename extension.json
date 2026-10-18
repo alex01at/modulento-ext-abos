@@ -1,8 +1,9 @@
 {
     "id": "abos",
     "name": "Abos",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "api": 1,
     "type": "addon",
+    "description": "Adds subscription plans and their billing - the provider behind the core's subscription facade.",
     "namespace": "Modulento\\Abos"
 }
